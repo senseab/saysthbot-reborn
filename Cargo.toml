@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rbatis = "3.1.11"
 wd_log = "0.1.5"
 futures = "^0.3"
+lazy_static = "*"
 
 [dependencies.clap]
 version = "3.2.6"
@@ -22,3 +22,6 @@ features = ["full"]
 version = "^0.8.0"
 # use RUSTFLAGS="-C target-feature=-crt-static"
 #features = ["rustls"]
+
+[dependencies.rbatis]
+version = "^3.1.11"
