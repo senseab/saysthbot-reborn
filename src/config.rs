@@ -1,6 +1,6 @@
 use clap::Parser;
 
-const DEFAULT_DATABASE: &'static str = "sqlite://saysthbot.db";
+const DEFAULT_DATABASE: &'static str = "sqlite:///saysthbot.db";
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

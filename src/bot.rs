@@ -44,8 +44,11 @@ impl Bot {
         if let Some(forward) = &message.forward {
             match &forward.from {
                 ForwardFrom::User { user } if !user.is_bot => {
-                    self.send_text_message(message, format!("`{}` Noted\\.", data).as_str())
-                        .await;
+                    self.send_text_message(
+                        message,
+                        format!("`{}` {}", data, BOT_TEXT_NOTED).as_str(),
+                    )
+                    .await;
                 }
                 ForwardFrom::User { user: _ } => {
                     self.send_text_message(message, BOT_TEXT_NO_BOT).await;
@@ -86,7 +89,11 @@ impl Bot {
     /// Run the bot
     pub async fn run(&self) {
         match self.api.send(GetMe).await {
-            Ok(result) => log_info_ln!("connect succeed: {:}", result.id),
+            Ok(result) => log_info_ln!(
+                "connect succeed: id={}, botname=\"{}\"",
+                result.id,
+                result.first_name
+            ),
             Err(error) => log_panic!("{}", error),
         }
 

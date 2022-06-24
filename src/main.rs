@@ -1,8 +1,7 @@
 mod bot;
 mod config;
-mod messages;
-mod models;
 mod db_controller;
+mod messages;
 
 use bot::Bot;
 use clap::Parser;
