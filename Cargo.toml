@@ -6,9 +6,19 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version ="3.2.6", features = ["derive", "env"]}
 rbatis = "3.1.11"
-telegram-bot = "0.8.0"
 wd_log = "0.1.5"
-tokio = { version = "^0.2", features = ["full"]}
 futures = "^0.3"
+
+[dependencies.clap]
+version = "3.2.6"
+features = ["derive", "env"]
+
+[dependencies.tokio]
+version = "^0.2"
+features = ["full"]
+
+[dependencies.telegram-bot]
+version = "^0.8.0"
+# use RUSTFLAGS="-C target-feature=-crt-static"
+#features = ["rustls"]
