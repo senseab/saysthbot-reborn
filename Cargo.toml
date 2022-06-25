@@ -15,11 +15,15 @@ version = "3.2.6"
 features = ["derive", "env"]
 
 [dependencies.tokio]
-version = "^0.2"
+version = "^1.0"
 features = ["full"]
 
-[dependencies.telegram-bot]
-version = "^0.8.0"
+[dependencies.teloxide]
+version = "^0.9"
+features = ["macros"]
+
+#[dependencies.telegram-bot]
+#version = "^0.8.0"
 # use RUSTFLAGS="-C target-feature=-crt-static"
 #features = ["rustls"]
 

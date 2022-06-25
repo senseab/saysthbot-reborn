@@ -1,16 +1,15 @@
-mod bot;
 mod config;
 mod db_controller;
 mod messages;
+mod telegram_bot;
 
-use bot::Bot;
 use clap::Parser;
 use config::Args;
-use telegram_bot::Error;
-use wd_log::{log_debug_ln, set_level, set_prefix, DEBUG, INFO};
+use telegram_bot::BotServer;
+use wd_log::{log_debug_ln, log_panic, set_level, set_prefix, DEBUG, INFO};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() {
     let args = Args::parse();
 
     set_prefix("saysthbot");
@@ -22,7 +21,14 @@ async fn main() -> Result<(), Error> {
         set_level(INFO);
     }
 
-    let bot = Bot::new(args);
+    let bot = match BotServer::new(args).await {
+        Ok(bot) => bot,
+        Err(err) => log_panic!("{}", err),
+    };
 
-    Ok(bot.run().await)
+    if let Err(err) = bot.init().await {
+        log_panic!("{}", err);
+    }
+
+    bot.run().await;
 }
