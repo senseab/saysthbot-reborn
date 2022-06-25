@@ -12,7 +12,7 @@ pub struct Model {
     pub user_id: u64,
 
     /// records
-    #[sea_orm(indexed, column_type = "Text")]
+    #[sea_orm(indexed, column_type = "Text", unique)]
     pub message: String,
 }
 
