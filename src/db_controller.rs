@@ -98,6 +98,14 @@ impl Controller {
             .await
     }
 
+    pub async fn get_user_by_username(&self, username: &str) -> Result<Option<UserModel>, DbErr> {
+        let transaction = self.db.begin().await?;
+        User::find()
+            .filter(UserColumn::Username.eq(username.to_owned()))
+            .one(&transaction)
+            .await
+    }
+
     /// get records when inline query called.
     pub async fn get_records_by_keywords(
         &self,
@@ -167,5 +175,9 @@ impl Controller {
             .await?;
         }
         transaction.commit().await
+    }
+
+    pub fn err_handler(&self, error: DbErr) {
+        log_error_ln!("{}", error);
     }
 }

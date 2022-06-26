@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
-use crate::config::Args;
 use crate::db_controller::Controller;
 use crate::messages::*;
+use crate::{commands::CommandHandler, config::Args};
 use migration::DbErr;
 use strfmt::Format;
-use teloxide::types::ParseMode;
-use teloxide::RequestError;
-use teloxide::{prelude::*, types::ForwardedFrom, types::UpdateKind};
+use teloxide::{
+    prelude::*, types::ForwardedFrom, types::ParseMode, types::UpdateKind, RequestError,
+};
 use wd_log::{log_debug_ln, log_error_ln, log_info_ln, log_panic};
 
 pub struct BotServer {
-    controller: Controller,
+    pub controller: Controller,
     bot: Bot,
 }
 
@@ -151,12 +151,23 @@ impl BotServer {
         if let Some(msg) = message.text() {
             let commands = self.command_spliter(msg);
             match commands[0].as_str() {
-                "list" => {}
-                "del" => {}
-                "mute" => {}
-                "unmute" => {}
-                "help" => {}
-                _ => (),
+                "about" => CommandHandler::about_handler(&self, message).await,
+                "list" => {
+                    let username = commands[1].trim();
+                    if username.starts_with("@") {
+                        CommandHandler::list_handler(&self, message, username).await;
+                    }
+                }
+                "del" => {
+                    if let Ok(id) = commands[1].trim().parse::<u64>() {
+                        CommandHandler::del_handler(&self, message, id).await;
+                    }
+                }
+                "mute" => CommandHandler::notify_handler(&self, message, true).await,
+                "unmute" => CommandHandler::notify_handler(&self, message, false).await,
+                "setup" => CommandHandler::setup_handler(&self, message).await,
+                "help" => CommandHandler::help_handler(&self, message).await,
+                _ => CommandHandler::help_handler(&self, message).await,
             }
         }
     }
@@ -182,7 +193,7 @@ impl BotServer {
         self.send_text_reply(message, BOT_TEXT_MESSAGE_ONLY).await;
     }
 
-    async fn send_text_message(&self, message: &Message, text: &str) {
+    pub async fn send_text_message(&self, message: &Message, text: &str) {
         match &self
             .bot
             .send_message(message.chat.id, text)
@@ -195,7 +206,7 @@ impl BotServer {
         }
     }
 
-    async fn send_text_reply(&self, message: &Message, text: &str) {
+    pub async fn send_text_reply(&self, message: &Message, text: &str) {
         match &self
             .bot
             .send_message(message.chat.id, text)
