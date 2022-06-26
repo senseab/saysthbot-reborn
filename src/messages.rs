@@ -13,3 +13,4 @@ pub const BOT_TEXT_MUTE_STATUS: &'static str = "提醒状态：{status}";
 pub const BOT_TEXT_STATUS_ON: &'static str = "✅ 开启";
 pub const BOT_TEXT_STATUS_OFF: &'static str = "❎ 关闭";
 pub const BOT_TEXT_DELETED: &'static str = "已删除";
+pub const BOT_TEXT_SHOULD_START_WITH_AT: &'static str = "用户名应当以 `@` 开头";

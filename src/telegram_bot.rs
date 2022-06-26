@@ -155,7 +155,15 @@ impl BotServer {
                 "list" => {
                     let username = commands[1].trim();
                     if username.starts_with("@") {
-                        CommandHandler::list_handler(&self, message, username).await;
+                        CommandHandler::list_handler(
+                            &self,
+                            message,
+                            username.trim_start_matches("@"),
+                        )
+                        .await;
+                    } else {
+                        self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
+                            .await;
                     }
                 }
                 "del" => {
