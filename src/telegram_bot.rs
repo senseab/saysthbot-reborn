@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use crate::config::Args;
 use crate::db_controller::Controller;
 use crate::messages::*;
 use migration::DbErr;
+use strfmt::Format;
 use teloxide::types::ParseMode;
 use teloxide::RequestError;
 use teloxide::{prelude::*, types::ForwardedFrom, types::UpdateKind};
@@ -78,11 +81,57 @@ impl BotServer {
         if let Some(forward) = &message.forward() {
             match &forward.from {
                 ForwardedFrom::User(user) if !user.is_bot => {
-                    self.send_text_reply(
-                        message,
-                        format!("`{}` {}", data, BOT_TEXT_NOTED).as_str(),
-                    )
-                    .await;
+                    let username = match &user.username {
+                        Some(username) => username,
+                        None => &user.first_name,
+                    };
+                    match self
+                        .controller
+                        .add_record(user.id.0, &username, data.to_string())
+                        .await
+                    {
+                        Ok(_) => {
+                            let mut vars = HashMap::new();
+                            vars.insert("data".to_string(), data);
+                            self.send_text_reply(message, &BOT_TEXT_NOTED.format(&vars).unwrap())
+                                .await;
+
+                            match message.from() {
+                                Some(from) if from.id != user.id => {
+                                    match self.controller.get_user_notify(&user.id.0).await {
+                                        Ok(notify) if notify => {
+                                            let mut vars = HashMap::new();
+                                            let user_id = user.id.to_string();
+                                            let data = data.to_string();
+
+                                            vars.insert("username".to_string(), &from.first_name);
+                                            vars.insert("user_id".to_string(), &user_id);
+                                            vars.insert("data".to_string(), &data);
+
+                                            match self
+                                                .bot
+                                                .send_message(
+                                                    user.id,
+                                                    &BOT_TEXT_NOTICE.format(&vars).unwrap(),
+                                                )
+                                                .send()
+                                                .await
+                                            {
+                                                Ok(result) => {
+                                                    log_debug_ln!("message sent {:?}", result)
+                                                }
+                                                Err(err) => self.default_error_handler(&err),
+                                            }
+                                        }
+                                        Ok(_) => (),
+                                        Err(err) => log_error_ln!("{}", err),
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                        Err(err) => log_error_ln!("{}", err),
+                    }
                 }
                 ForwardedFrom::User(_) => {
                     self.send_text_reply(message, BOT_TEXT_NO_BOT).await;
@@ -90,8 +139,34 @@ impl BotServer {
                 _ => self.send_text_message(message, BOT_TEXT_USER_ONLY).await,
             }
         } else {
-            self.send_text_reply(message, BOT_TEXT_FORWARDED_ONLY).await;
+            if data.starts_with("/") {
+                self.command_hanler(message).await;
+            } else {
+                self.send_text_reply(message, BOT_TEXT_FORWARDED_ONLY).await;
+            }
         }
+    }
+
+    async fn command_hanler(&self, message: &Message) {
+        if let Some(msg) = message.text() {
+            let commands = self.command_spliter(msg);
+            match commands[0].as_str() {
+                "list" => {}
+                "del" => {}
+                "mute" => {}
+                "unmute" => {}
+                "help" => {}
+                _ => (),
+            }
+        }
+    }
+
+    fn command_spliter(&self, msg: &str) -> Vec<String> {
+        let commands: Vec<&str> = msg.split(" ").collect();
+        let command = commands[0].trim_start_matches("/").to_owned();
+        let args = commands[1..].join(" ").to_owned();
+
+        vec![command, args]
     }
 
     fn default_error_handler(&self, error: &RequestError) {

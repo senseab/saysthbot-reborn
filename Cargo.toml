@@ -8,7 +8,8 @@ edition = "2021"
 [dependencies]
 wd_log = "0.1.5"
 futures = "^0.3"
-lazy_static = "*"
+#lazy_static = "*"
+strfmt = "^0.1.6"
 
 [dependencies.clap]
 version = "3.2.6"
@@ -22,13 +23,7 @@ features = ["full"]
 version = "^0.9"
 features = ["macros"]
 
-#[dependencies.telegram-bot]
-#version = "^0.8.0"
 # use RUSTFLAGS="-C target-feature=-crt-static"
-#features = ["rustls"]
-
-#[dependencies.rbatis]
-#version = "^3.1.11"
 
 [dependencies.sea-orm]
 version = "^0.8.0"

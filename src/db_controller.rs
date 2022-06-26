@@ -6,7 +6,7 @@ use sea_orm::{
 };
 use wd_log::{log_error_ln, log_info_ln};
 
-const page_size: usize = 25;
+const PAGE_SIZE: usize = 25;
 
 #[derive(Debug)]
 pub struct Controller {
@@ -36,14 +36,14 @@ impl Controller {
     }
 
     /// register user when `/start` command called.
-    pub async fn register_user(&self, user_id: u64, username: String) -> Result<(), DbErr> {
+    pub async fn register_user(&self, user_id: &u64, username: &String) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
         self.setup_user(user_id, username, &transaction).await?;
         transaction.commit().await
     }
 
     /// update user notify when `/mute` or `/unmute` command called.
-    pub async fn set_user_notify(&self, user_id: u64, notify: bool) -> Result<(), DbErr> {
+    pub async fn set_user_notify(&self, user_id: &u64, notify: bool) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
         if let Some(user) = self.get_user(user_id, &transaction).await? {
             let mut user_active: UserActiveModel = user.into();
@@ -53,22 +53,31 @@ impl Controller {
         transaction.commit().await
     }
 
+    pub async fn get_user_notify(&self, user_id: &u64) -> Result<bool, DbErr> {
+        let transaction = self.db.begin().await?;
+        if let Some(user) = self.get_user(&user_id, &transaction).await? {
+            Ok(user.notify)
+        } else {
+            Ok(false)
+        }
+    }
+
     async fn setup_user(
         &self,
-        user_id: u64,
-        username: String,
+        user_id: &u64,
+        username: &String,
         transaction: &DatabaseTransaction,
     ) -> Result<UserActiveModel, DbErr> {
         match self.get_user(user_id, &transaction).await? {
             Some(user) => {
                 let mut user_active: UserActiveModel = user.into();
-                user_active.username = Set(Some(username));
+                user_active.username = Set(Some(username.to_string()));
                 user_active.save(transaction).await
             }
             None => {
                 UserActiveModel {
-                    tg_uid: Set(user_id),
-                    username: Set(Some(username)),
+                    tg_uid: Set(user_id.to_owned()),
+                    username: Set(Some(username.to_string())),
                     notify: Set(true),
                     ..Default::default()
                 }
@@ -80,11 +89,11 @@ impl Controller {
 
     async fn get_user(
         &self,
-        user_id: u64,
+        user_id: &u64,
         transaction: &DatabaseTransaction,
     ) -> Result<Option<UserModel>, DbErr> {
         User::find()
-            .filter(UserColumn::TgUid.eq(user_id))
+            .filter(UserColumn::TgUid.eq(user_id.to_owned()))
             .one(transaction)
             .await
     }
@@ -96,7 +105,7 @@ impl Controller {
     ) -> Result<PaginatedRecordData, DbErr> {
         let pagination = Record::find()
             .filter(RecordColumn::Message.contains(key_word.as_str()))
-            .paginate(&self.db, page_size * 2); // 50 records seems ok.
+            .paginate(&self.db, PAGE_SIZE * 2); // 50 records seems ok.
         Ok(PaginatedRecordData {
             items_count: pagination.num_items().await?,
             pages_count: pagination.num_pages().await?,
@@ -111,10 +120,10 @@ impl Controller {
         page: usize,
     ) -> Result<Option<PaginatedRecordData>, DbErr> {
         let transaction = self.db.begin().await?;
-        if let Some(user) = self.get_user(user_id, &transaction).await? {
+        if let Some(user) = self.get_user(&user_id, &transaction).await? {
             let pagination = Record::find()
                 .filter(RecordColumn::UserId.eq(user.id))
-                .paginate(&transaction, page_size);
+                .paginate(&transaction, PAGE_SIZE);
             Ok(Some(PaginatedRecordData {
                 current_data: pagination.fetch_page(page).await?,
                 items_count: pagination.num_items().await?,
@@ -130,11 +139,11 @@ impl Controller {
     pub async fn add_record(
         &self,
         user_id: u64,
-        username: String,
+        username: &String,
         text: String,
     ) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
-        let user = self.setup_user(user_id, username, &transaction).await?;
+        let user = self.setup_user(&user_id, &username, &transaction).await?;
         RecordActiveModel {
             message: Set(text),
             user_id: user.id,
@@ -146,14 +155,17 @@ impl Controller {
     }
 
     /// del record when `/delete` command called.
-    pub async fn del_record(&self, id: u64) -> Result<(), DbErr> {
+    pub async fn del_record(&self, id: u64, user_id: u64) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
-        RecordActiveModel {
-            id: Set(id),
-            ..Default::default()
+        if let Some(user) = self.get_user(&user_id, &transaction).await? {
+            RecordActiveModel {
+                id: Set(id),
+                user_id: Set(user.id),
+                ..Default::default()
+            }
+            .delete(&transaction)
+            .await?;
         }
-        .delete(&transaction)
-        .await?;
         transaction.commit().await
     }
 }
