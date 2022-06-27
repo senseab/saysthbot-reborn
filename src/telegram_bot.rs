@@ -68,49 +68,56 @@ impl BotServer {
     }
 
     async fn inline_query_hander(&self, inline_query: &InlineQuery) {
-        match self
+        let results = match self
             .controller
             .get_records_by_keywords(&inline_query.query)
             .await
         {
-            Ok(results) => {
-                let mut r: Vec<InlineQueryResult> = vec![];
-                for (record, o_user) in results.current_data.iter() {
-                    if let Some(user) = o_user {
-                        if let Some(username) = &user.username {
-                            r.push(InlineQueryResult::Article(InlineQueryResultArticle {
-                                id: record.id.to_string(),
-                                title: record.message.to_owned(),
-                                input_message_content: InputMessageContent::Text(
-                                    InputMessageContentText {
-                                        message_text: format!("`{}`: {}", username, record.message),
-                                        parse_mode: Some(ParseMode::MarkdownV2),
-                                        entities: None,
-                                        disable_web_page_preview: Some(true),
-                                    },
-                                ),
-                                reply_markup: None,
-                                url: None,
-                                hide_url: None,
-                                description: Some(format!("By: {}", username)),
-                                thumb_url: None,
-                                thumb_width: None,
-                                thumb_height: None,
-                            }));
-                        }
-                    }
-                }
-
-                if let Err(error) = self
-                    .bot
-                    .answer_inline_query(&inline_query.id, r.into_iter())
-                    .send()
-                    .await
-                {
-                    self.default_error_handler(&error);
-                }
+            Ok(results) => results,
+            Err(error) => {
+                self.controller.err_handler(error);
+                return;
             }
-            Err(error) => self.controller.err_handler(error),
+        };
+
+        let mut r: Vec<InlineQueryResult> = vec![];
+        for (record, o_user) in results.current_data.iter() {
+            let user = match o_user {
+                Some(user) => user,
+                None => continue,
+            };
+
+            let username = match &user.username {
+                Some(username) => username,
+                None => continue,
+            };
+
+            r.push(InlineQueryResult::Article(InlineQueryResultArticle {
+                id: record.id.to_string(),
+                title: record.message.to_owned(),
+                input_message_content: InputMessageContent::Text(InputMessageContentText {
+                    message_text: format!("`{}`: {}", username, record.message),
+                    parse_mode: Some(ParseMode::MarkdownV2),
+                    entities: None,
+                    disable_web_page_preview: Some(true),
+                }),
+                reply_markup: None,
+                url: None,
+                hide_url: None,
+                description: Some(format!("By: {}", username)),
+                thumb_url: None,
+                thumb_width: None,
+                thumb_height: None,
+            }));
+        }
+
+        if let Err(error) = self
+            .bot
+            .answer_inline_query(&inline_query.id, r.into_iter())
+            .send()
+            .await
+        {
+            self.default_error_handler(&error);
         }
     }
 
@@ -123,112 +130,121 @@ impl BotServer {
     }
 
     async fn text_message_heandler(&self, message: &Message, data: &str) {
-        if let Some(forward) = &message.forward() {
-            match &forward.from {
-                ForwardedFrom::User(user) if !user.is_bot => {
-                    let username = match &user.username {
-                        Some(username) => format!("@{}", username),
-                        None => user.first_name.to_owned(),
-                    };
-                    match self
+        let forward = match message.forward() {
+            Some(forward) => forward,
+            None => {
+                if data.starts_with("/") {
+                    self.command_hanler(message).await;
+                } else {
+                    self.send_text_reply(message, BOT_TEXT_FORWARDED_ONLY).await;
+                }
+                return;
+            }
+        };
+
+        match &forward.from {
+            ForwardedFrom::User(user) if !user.is_bot => {
+                let username = match &user.username {
+                    Some(username) => format!("@{}", username),
+                    None => user.first_name.to_owned(),
+                };
+
+                if let Err(err) = self
+                    .controller
+                    .add_record(user.id.0.try_into().unwrap(), &username, data.to_string())
+                    .await
+                {
+                    log_error_ln!("{}", err);
+                    return;
+                }
+                let mut vars = HashMap::new();
+                vars.insert("data".to_string(), data);
+
+                self.send_text_reply(message, &BOT_TEXT_NOTED.format(&vars).unwrap())
+                    .await;
+
+                let from = match message.from() {
+                    Some(from) => from,
+                    None => return,
+                };
+
+                if from.id != user.id {
+                    if match self
                         .controller
-                        .add_record(user.id.0.try_into().unwrap(), &username, data.to_string())
+                        .get_user_notify(&user.id.0.try_into().unwrap())
                         .await
                     {
-                        Ok(_) => {
-                            let mut vars = HashMap::new();
-                            vars.insert("data".to_string(), data);
-                            self.send_text_reply(message, &BOT_TEXT_NOTED.format(&vars).unwrap())
-                                .await;
-
-                            match message.from() {
-                                Some(from) if from.id != user.id => {
-                                    match self
-                                        .controller
-                                        .get_user_notify(&user.id.0.try_into().unwrap())
-                                        .await
-                                    {
-                                        Ok(notify) if notify => {
-                                            let mut vars = HashMap::new();
-                                            let user_id = user.id.to_string();
-                                            let data = data.to_string();
-
-                                            vars.insert("username".to_string(), &from.first_name);
-                                            vars.insert("user_id".to_string(), &user_id);
-                                            vars.insert("data".to_string(), &data);
-
-                                            match self
-                                                .bot
-                                                .send_message(
-                                                    user.id,
-                                                    &BOT_TEXT_NOTICE.format(&vars).unwrap(),
-                                                )
-                                                .send()
-                                                .await
-                                            {
-                                                Ok(result) => {
-                                                    log_debug_ln!("message sent {:?}", result)
-                                                }
-                                                Err(err) => self.default_error_handler(&err),
-                                            }
-                                        }
-                                        Ok(_) => (),
-                                        Err(err) => log_error_ln!("{}", err),
-                                    }
-                                }
-                                _ => (),
-                            }
+                        Ok(notify) => notify,
+                        Err(error) => {
+                            log_error_ln!("{}", error);
+                            return;
                         }
-                        Err(err) => log_error_ln!("{}", err),
+                    } {
+                        let mut vars = HashMap::new();
+                        let user_id = user.id.to_string();
+                        let data = data.to_string();
+
+                        vars.insert("username".to_string(), &from.first_name);
+                        vars.insert("user_id".to_string(), &user_id);
+                        vars.insert("data".to_string(), &data);
+
+                        match self
+                            .bot
+                            .send_message(user.id, &BOT_TEXT_NOTICE.format(&vars).unwrap())
+                            .send()
+                            .await
+                        {
+                            Ok(result) => {
+                                log_debug_ln!("message sent {:?}", result)
+                            }
+                            Err(err) => self.default_error_handler(&err),
+                        }
                     }
                 }
-                ForwardedFrom::User(_) => {
-                    self.send_text_reply(message, BOT_TEXT_NO_BOT).await;
-                }
-                _ => self.send_text_message(message, BOT_TEXT_USER_ONLY).await,
             }
-        } else {
-            if data.starts_with("/") {
-                self.command_hanler(message).await;
-            } else {
-                self.send_text_reply(message, BOT_TEXT_FORWARDED_ONLY).await;
+            ForwardedFrom::User(_) => {
+                self.send_text_reply(message, BOT_TEXT_NO_BOT).await;
             }
+            _ => self.send_text_message(message, BOT_TEXT_USER_ONLY).await,
         }
     }
 
     async fn command_hanler(&self, message: &Message) {
-        if let Some(msg) = message.text() {
-            let commands = self.command_spliter(msg);
-            match commands[0].as_str() {
-                "about" => CommandHandler::about_handler(&self, message).await,
-                "list" => {
-                    let mut username = commands[1].trim();
-                    if username == "" {
-                        if let Some(from) = message.from() {
-                            if let Some(_username) = &from.username {
-                                username = _username;
-                            }
+        let msg = match message.text() {
+            Some(msg) => msg,
+            None => return,
+        };
+
+        let commands = self.command_spliter(msg);
+        match commands[0].as_str() {
+            "about" => CommandHandler::about_handler(&self, message).await,
+            "list" => {
+                let mut username = commands[1].trim();
+                if username == "" {
+                    if let Some(from) = message.from() {
+                        if let Some(_username) = &from.username {
+                            username = _username;
                         }
                     }
-                    if username.starts_with("@") {
-                        // always start from page=0
-                        CommandHandler::list_handler(&self, message, username, 0).await;
-                    } else {
-                        self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
-                            .await;
-                    }
                 }
-                "del" => {
-                    if let Ok(id) = commands[1].trim().parse::<i64>() {
-                        CommandHandler::del_handler(&self, message, id).await;
-                    }
+                if username.starts_with("@") {
+                    // always start from page=0
+                    CommandHandler::list_handler(&self, message, username, 0).await;
+                } else {
+                    self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
+                        .await;
                 }
-                "mute" => CommandHandler::notify_handler(&self, message, true).await,
-                "unmute" => CommandHandler::notify_handler(&self, message, false).await,
-                "setup" => CommandHandler::setup_handler(&self, message).await,
-                "help" => CommandHandler::help_handler(&self, message).await,
-                _ => CommandHandler::help_handler(&self, message).await,
             }
+            "del" => {
+                if let Ok(id) = commands[1].trim().parse::<i64>() {
+                    CommandHandler::del_handler(&self, message, id).await;
+                }
+            }
+            "mute" => CommandHandler::notify_handler(&self, message, true).await,
+            "unmute" => CommandHandler::notify_handler(&self, message, false).await,
+            "setup" => CommandHandler::setup_handler(&self, message).await,
+            "help" => CommandHandler::help_handler(&self, message).await,
+            _ => CommandHandler::help_handler(&self, message).await,
         }
     }
 
