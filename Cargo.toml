@@ -21,7 +21,7 @@ features = ["full"]
 
 [dependencies.teloxide]
 version = "^0.9"
-features = ["macros"]
+features = ["macros", "rustls"]
 
 # use RUSTFLAGS="-C target-feature=-crt-static"
 
