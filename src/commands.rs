@@ -78,7 +78,7 @@ impl CommandHandler {
         }
     }
 
-    pub async fn list_handler(bot_s: &BotServer, message: &Message, username: &str) {
+    pub async fn list_handler(bot_s: &BotServer, message: &Message, username: &str, page: usize) {
         if let Some(user) = message.from() {
             if !user.is_bot {
                 match bot_s.controller.get_user_by_username(username).await {
@@ -86,7 +86,7 @@ impl CommandHandler {
                         if let Some(someone) = someone {
                             match bot_s
                                 .controller
-                                .get_records_by_userid_with_pagination(someone.id, 0)
+                                .get_records_by_userid_with_pagination(someone.id, page)
                                 .await
                             {
                                 Ok(data) => {

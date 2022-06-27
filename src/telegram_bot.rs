@@ -211,7 +211,8 @@ impl BotServer {
                         }
                     }
                     if username.starts_with("@") {
-                        CommandHandler::list_handler(&self, message, username).await;
+                        // always start from page=0
+                        CommandHandler::list_handler(&self, message, username, 0).await;
                     } else {
                         self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
                             .await;
