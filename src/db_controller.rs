@@ -4,7 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, DatabaseTransaction, DbErr,
     EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
 };
-use wd_log::{log_error_ln, log_info_ln};
+use wd_log::{log_error_ln, log_info_ln, log_warn_ln};
 
 const PAGE_SIZE: usize = 25;
 
@@ -30,20 +30,25 @@ impl Controller {
     /// Do migrate
     pub async fn migrate(&self) -> Result<(), DbErr> {
         if let Err(err) = Migrator::install(&self.db).await {
-            log_info_ln!("{}", err)
+            log_warn_ln!("{}", err)
         }
-        Migrator::up(&self.db, None).await
+        if let Err(err) = Migrator::up(&self.db, None).await {
+            Err(err)
+        } else {
+            log_info_ln!("database initialized.");
+            Ok(())
+        }
     }
 
     /// register user when `/start` command called.
-    pub async fn register_user(&self, user_id: &u64, username: &String) -> Result<(), DbErr> {
+    pub async fn register_user(&self, user_id: &i64, username: &String) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
         self.setup_user(user_id, username, &transaction).await?;
         transaction.commit().await
     }
 
     /// update user notify when `/mute` or `/unmute` command called.
-    pub async fn set_user_notify(&self, user_id: &u64, notify: bool) -> Result<(), DbErr> {
+    pub async fn set_user_notify(&self, user_id: &i64, notify: bool) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
         if let Some(user) = self.get_user(user_id, &transaction).await? {
             let mut user_active: UserActiveModel = user.into();
@@ -53,7 +58,7 @@ impl Controller {
         transaction.commit().await
     }
 
-    pub async fn get_user_notify(&self, user_id: &u64) -> Result<bool, DbErr> {
+    pub async fn get_user_notify(&self, user_id: &i64) -> Result<bool, DbErr> {
         let transaction = self.db.begin().await?;
         if let Some(user) = self.get_user(&user_id, &transaction).await? {
             Ok(user.notify)
@@ -64,7 +69,7 @@ impl Controller {
 
     async fn setup_user(
         &self,
-        user_id: &u64,
+        user_id: &i64,
         username: &String,
         transaction: &DatabaseTransaction,
     ) -> Result<UserActiveModel, DbErr> {
@@ -89,7 +94,7 @@ impl Controller {
 
     async fn get_user(
         &self,
-        user_id: &u64,
+        user_id: &i64,
         transaction: &DatabaseTransaction,
     ) -> Result<Option<UserModel>, DbErr> {
         User::find()
@@ -124,7 +129,7 @@ impl Controller {
     /// get records when `/list` command called or inline button request.
     pub async fn get_records_by_userid_with_pagination(
         &self,
-        user_id: u64,
+        user_id: i64,
         page: usize,
     ) -> Result<Option<PaginatedRecordData>, DbErr> {
         let transaction = self.db.begin().await?;
@@ -146,7 +151,7 @@ impl Controller {
     /// add record forward a message to bot.
     pub async fn add_record(
         &self,
-        user_id: u64,
+        user_id: i64,
         username: &String,
         text: String,
     ) -> Result<(), DbErr> {
@@ -163,7 +168,7 @@ impl Controller {
     }
 
     /// del record when `/delete` command called.
-    pub async fn del_record(&self, id: u64, user_id: u64) -> Result<(), DbErr> {
+    pub async fn del_record(&self, id: i64, user_id: i64) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
         if let Some(user) = self.get_user(&user_id, &transaction).await? {
             RecordActiveModel {

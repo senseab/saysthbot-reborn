@@ -5,11 +5,11 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// internal ID
     #[sea_orm(primary_key)]
-    pub id: u64,
+    pub id: i64,
 
     /// relation user id
     #[sea_orm(indexed)]
-    pub user_id: u64,
+    pub user_id: i64,
 
     /// records
     #[sea_orm(indexed, column_type = "Text", unique)]

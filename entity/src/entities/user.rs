@@ -5,11 +5,11 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     /// internal ID
     #[sea_orm(primary_key)]
-    pub id: u64,
+    pub id: i64,
 
     /// Telegram user ID
     #[sea_orm(unique)]
-    pub tg_uid: u64,
+    pub tg_uid: i64,
 
     /// Telegram user name
     #[sea_orm(nullable)]

@@ -87,7 +87,7 @@ impl BotServer {
                     };
                     match self
                         .controller
-                        .add_record(user.id.0, &username, data.to_string())
+                        .add_record(user.id.0.try_into().unwrap(), &username, data.to_string())
                         .await
                     {
                         Ok(_) => {
@@ -98,7 +98,11 @@ impl BotServer {
 
                             match message.from() {
                                 Some(from) if from.id != user.id => {
-                                    match self.controller.get_user_notify(&user.id.0).await {
+                                    match self
+                                        .controller
+                                        .get_user_notify(&user.id.0.try_into().unwrap())
+                                        .await
+                                    {
                                         Ok(notify) if notify => {
                                             let mut vars = HashMap::new();
                                             let user_id = user.id.to_string();
@@ -153,7 +157,14 @@ impl BotServer {
             match commands[0].as_str() {
                 "about" => CommandHandler::about_handler(&self, message).await,
                 "list" => {
-                    let username = commands[1].trim();
+                    let mut username = commands[1].trim();
+                    if username == "" {
+                        if let Some(from) = message.from() {
+                            if let Some(_username) = &from.username {
+                                username = _username;
+                            }
+                        }
+                    }
                     if username.starts_with("@") {
                         CommandHandler::list_handler(
                             &self,
@@ -167,7 +178,7 @@ impl BotServer {
                     }
                 }
                 "del" => {
-                    if let Ok(id) = commands[1].trim().parse::<u64>() {
+                    if let Ok(id) = commands[1].trim().parse::<i64>() {
                         CommandHandler::del_handler(&self, message, id).await;
                     }
                 }
