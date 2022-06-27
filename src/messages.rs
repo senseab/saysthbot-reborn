@@ -14,3 +14,7 @@ pub const BOT_TEXT_STATUS_ON: &'static str = "✅ 开启";
 pub const BOT_TEXT_STATUS_OFF: &'static str = "❎ 关闭";
 pub const BOT_TEXT_DELETED: &'static str = "已删除";
 pub const BOT_TEXT_SHOULD_START_WITH_AT: &'static str = "用户名应当以 `@` 开头";
+pub const BOT_BUTTON_HEAD: &'static str = "⏮ 首页";
+pub const BOT_BUTTON_END: &'static str = "末页 ⏭";
+pub const BOT_BUTTON_PREV: &'static str = "⏪ 上一页";
+pub const BOT_BUTTON_NEXT: &'static str = "下一页 ⏩";

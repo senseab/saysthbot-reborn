@@ -5,10 +5,11 @@ use crate::messages::*;
 use crate::{commands::CommandHandler, config::Args};
 use migration::DbErr;
 use strfmt::Format;
+
 use teloxide::{
     prelude::*, types::ForwardedFrom, types::InlineQueryResult, types::InlineQueryResultArticle,
     types::InputMessageContent, types::InputMessageContentText, types::ParseMode,
-    types::UpdateKind, RequestError,
+    types::ReplyMarkup, types::UpdateKind, RequestError,
 };
 use wd_log::{log_debug_ln, log_error_ln, log_info_ln, log_panic};
 
@@ -59,6 +60,7 @@ impl BotServer {
         match &update.kind {
             UpdateKind::Message(ref message) => self.message_handler(message).await,
             UpdateKind::InlineQuery(inline_query) => self.inline_query_hander(inline_query).await,
+            UpdateKind::CallbackQuery(callback) => self.callback_handler(callback).await,
             kind => self.default_update_hander(&kind).await,
         }
     }
@@ -67,6 +69,46 @@ impl BotServer {
         log_debug_ln!("non-supported kind {:?}", update_kind);
     }
 
+    async fn callback_handler(&self, callback: &CallbackQuery) {
+        let message = match &callback.message {
+            Some(msg) => msg,
+            None => return,
+        };
+
+        let text = match message.text() {
+            Some(text) => text,
+            None => return,
+        };
+
+        let args: Vec<&str> = text.split(" ").collect();
+
+        let (command, msg_id, username, page) = (args[0], args[1], args[2], args[3]);
+
+        match command {
+            "page" => {
+                let (msg, keyboard) = match CommandHandler::record_msg_genrator(
+                    self,
+                    message,
+                    username,
+                    page.parse::<usize>().unwrap(),
+                )
+                .await
+                {
+                    Some(d) => d,
+                    None => return,
+                };
+
+                self.edit_text_reply_with_inline_key(
+                    message,
+                    msg_id.parse::<i32>().unwrap(),
+                    msg.as_str(),
+                    keyboard,
+                )
+                .await;
+            }
+            _ => return,
+        }
+    }
     async fn inline_query_hander(&self, inline_query: &InlineQuery) {
         let results = match self
             .controller
@@ -168,37 +210,39 @@ impl BotServer {
                     None => return,
                 };
 
-                if from.id != user.id {
-                    if match self
-                        .controller
-                        .get_user_notify(&user.id.0.try_into().unwrap())
+                if from.id == user.id {
+                    return;
+                }
+
+                if match self
+                    .controller
+                    .get_user_notify(&user.id.0.try_into().unwrap())
+                    .await
+                {
+                    Ok(notify) => notify,
+                    Err(error) => {
+                        log_error_ln!("{}", error);
+                        return;
+                    }
+                } {
+                    let mut vars = HashMap::new();
+                    let user_id = user.id.to_string();
+                    let data = data.to_string();
+
+                    vars.insert("username".to_string(), &from.first_name);
+                    vars.insert("user_id".to_string(), &user_id);
+                    vars.insert("data".to_string(), &data);
+
+                    match self
+                        .bot
+                        .send_message(user.id, &BOT_TEXT_NOTICE.format(&vars).unwrap())
+                        .send()
                         .await
                     {
-                        Ok(notify) => notify,
-                        Err(error) => {
-                            log_error_ln!("{}", error);
-                            return;
+                        Ok(result) => {
+                            log_debug_ln!("message sent {:?}", result)
                         }
-                    } {
-                        let mut vars = HashMap::new();
-                        let user_id = user.id.to_string();
-                        let data = data.to_string();
-
-                        vars.insert("username".to_string(), &from.first_name);
-                        vars.insert("user_id".to_string(), &user_id);
-                        vars.insert("data".to_string(), &data);
-
-                        match self
-                            .bot
-                            .send_message(user.id, &BOT_TEXT_NOTICE.format(&vars).unwrap())
-                            .send()
-                            .await
-                        {
-                            Ok(result) => {
-                                log_debug_ln!("message sent {:?}", result)
-                            }
-                            Err(err) => self.default_error_handler(&err),
-                        }
+                        Err(err) => self.default_error_handler(&err),
                     }
                 }
             }
@@ -220,6 +264,7 @@ impl BotServer {
             "about" => CommandHandler::about_handler(&self, message).await,
             "list" => {
                 let mut username = commands[1].trim();
+
                 if username == "" {
                     if let Some(from) = message.from() {
                         if let Some(_username) = &from.username {
@@ -227,6 +272,7 @@ impl BotServer {
                         }
                     }
                 }
+
                 if username.starts_with("@") {
                     // always start from page=0
                     CommandHandler::list_handler(&self, message, username, 0).await;
@@ -287,6 +333,51 @@ impl BotServer {
             .bot
             .send_message(message.chat.id, text)
             .reply_to_message_id(message.id)
+            .parse_mode(ParseMode::MarkdownV2)
+            .send()
+            .await
+        {
+            Ok(result) => log_debug_ln!("reply sent {:?}", result),
+            Err(error) => self.default_error_handler(error),
+        }
+    }
+
+    pub async fn send_text_reply_with_inline_key(
+        &self,
+        message: &Message,
+        text: &str,
+        keyboard: ReplyMarkup,
+    ) {
+        match &self
+            .bot
+            .send_message(message.chat.id, text)
+            .reply_to_message_id(message.id)
+            .parse_mode(ParseMode::MarkdownV2)
+            .reply_markup(keyboard)
+            .send()
+            .await
+        {
+            Ok(result) => log_debug_ln!("reply sent {:?}", result),
+            Err(error) => self.default_error_handler(error),
+        }
+    }
+
+    pub async fn edit_text_reply_with_inline_key(
+        &self,
+        message: &Message,
+        msg_id: i32,
+        text: &str,
+        keyboard: ReplyMarkup,
+    ) {
+        let keyboard = match keyboard {
+            ReplyMarkup::InlineKeyboard(keyboard) => keyboard,
+            _ => return,
+        };
+
+        match &self
+            .bot
+            .edit_message_text(message.chat.id, msg_id, text)
+            .reply_markup(keyboard)
             .parse_mode(ParseMode::MarkdownV2)
             .send()
             .await
