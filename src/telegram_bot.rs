@@ -6,7 +6,9 @@ use crate::{commands::CommandHandler, config::Args};
 use migration::DbErr;
 use strfmt::Format;
 use teloxide::{
-    prelude::*, types::ForwardedFrom, types::ParseMode, types::UpdateKind, RequestError,
+    prelude::*, types::ForwardedFrom, types::InlineQueryResult, types::InlineQueryResultArticle,
+    types::InputMessageContent, types::InputMessageContentText, types::ParseMode,
+    types::UpdateKind, RequestError,
 };
 use wd_log::{log_debug_ln, log_error_ln, log_info_ln, log_panic};
 
@@ -66,7 +68,50 @@ impl BotServer {
     }
 
     async fn inline_query_hander(&self, inline_query: &InlineQuery) {
-        log_debug_ln!("inline query: {:?}", inline_query);
+        match self
+            .controller
+            .get_records_by_keywords(&inline_query.query)
+            .await
+        {
+            Ok(results) => {
+                let mut r: Vec<InlineQueryResult> = vec![];
+                for (record, o_user) in results.current_data.iter() {
+                    if let Some(user) = o_user {
+                        if let Some(username) = &user.username {
+                            r.push(InlineQueryResult::Article(InlineQueryResultArticle {
+                                id: record.id.to_string(),
+                                title: record.message.to_owned(),
+                                input_message_content: InputMessageContent::Text(
+                                    InputMessageContentText {
+                                        message_text: format!("`{}`: {}", username, record.message),
+                                        parse_mode: Some(ParseMode::MarkdownV2),
+                                        entities: None,
+                                        disable_web_page_preview: Some(true),
+                                    },
+                                ),
+                                reply_markup: None,
+                                url: None,
+                                hide_url: None,
+                                description: Some(format!("By: {}", username)),
+                                thumb_url: None,
+                                thumb_width: None,
+                                thumb_height: None,
+                            }));
+                        }
+                    }
+                }
+
+                if let Err(error) = self
+                    .bot
+                    .answer_inline_query(&inline_query.id, r.into_iter())
+                    .send()
+                    .await
+                {
+                    self.default_error_handler(&error);
+                }
+            }
+            Err(error) => self.controller.err_handler(error),
+        }
     }
 
     async fn message_handler(&self, message: &Message) {
@@ -82,8 +127,8 @@ impl BotServer {
             match &forward.from {
                 ForwardedFrom::User(user) if !user.is_bot => {
                     let username = match &user.username {
-                        Some(username) => username,
-                        None => &user.first_name,
+                        Some(username) => format!("@{}", username),
+                        None => user.first_name.to_owned(),
                     };
                     match self
                         .controller
@@ -166,12 +211,7 @@ impl BotServer {
                         }
                     }
                     if username.starts_with("@") {
-                        CommandHandler::list_handler(
-                            &self,
-                            message,
-                            username.trim_start_matches("@"),
-                        )
-                        .await;
+                        CommandHandler::list_handler(&self, message, username).await;
                     } else {
                         self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
                             .await;

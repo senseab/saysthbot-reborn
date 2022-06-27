@@ -16,7 +16,7 @@ pub struct Controller {
 pub struct PaginatedRecordData {
     pub items_count: usize,
     pub pages_count: usize,
-    pub current_data: Vec<RecordModel>,
+    pub current_data: Vec<(RecordModel, Option<UserModel>)>,
 }
 
 impl Controller {
@@ -117,6 +117,7 @@ impl Controller {
         key_word: &String,
     ) -> Result<PaginatedRecordData, DbErr> {
         let pagination = Record::find()
+            .find_also_related(User)
             .filter(RecordColumn::Message.contains(key_word.as_str()))
             .paginate(&self.db, PAGE_SIZE * 2); // 50 records seems ok.
         Ok(PaginatedRecordData {
@@ -135,6 +136,7 @@ impl Controller {
         let transaction = self.db.begin().await?;
         if let Some(user) = self.get_user(&user_id, &transaction).await? {
             let pagination = Record::find()
+                .find_also_related(User)
                 .filter(RecordColumn::UserId.eq(user.id))
                 .paginate(&transaction, PAGE_SIZE);
             Ok(Some(PaginatedRecordData {

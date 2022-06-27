@@ -4,7 +4,6 @@ use strfmt::Format;
 use teloxide::prelude::*;
 
 use crate::{
-    db_controller::PaginatedRecordData,
     messages::{
         BOT_ABOUT, BOT_HELP, BOT_TEXT_DELETED, BOT_TEXT_MUTE_STATUS, BOT_TEXT_STATUS_OFF,
         BOT_TEXT_STATUS_ON, BOT_TEXT_WELCOME,
@@ -53,7 +52,7 @@ impl CommandHandler {
             if !user.is_bot {
                 let user_id: i64 = user.id.0.try_into().unwrap();
                 let username = match user.username.to_owned() {
-                    Some(username) => username,
+                    Some(username) => format!("@{}", username),
                     None => user.first_name.to_owned(),
                 };
                 if let Err(error) = bot_s.controller.register_user(&user_id, &username).await {
@@ -67,7 +66,11 @@ impl CommandHandler {
     pub async fn del_handler(bot_s: &BotServer, message: &Message, id: i64) {
         if let Some(user) = message.from() {
             if !user.is_bot {
-                if let Err(error) = bot_s.controller.del_record(id, user.id.0.try_into().unwrap()).await {
+                if let Err(error) = bot_s
+                    .controller
+                    .del_record(id, user.id.0.try_into().unwrap())
+                    .await
+                {
                     bot_s.controller.err_handler(error);
                 }
             }
@@ -78,27 +81,25 @@ impl CommandHandler {
     pub async fn list_handler(bot_s: &BotServer, message: &Message, username: &str) {
         if let Some(user) = message.from() {
             if !user.is_bot {
-                let data: Option<PaginatedRecordData>;
                 match bot_s.controller.get_user_by_username(username).await {
                     Ok(someone) => {
                         if let Some(someone) = someone {
-                            data = match bot_s
+                            match bot_s
                                 .controller
                                 .get_records_by_userid_with_pagination(someone.id, 0)
                                 .await
                             {
-                                Ok(result) => result,
-                                Err(error) => {
-                                    bot_s.controller.err_handler(error);
-                                    None
+                                Ok(data) => {
+                                    if let Some(item) = data {
+                                        // TODO: data
+                                    }
                                 }
+                                Err(error) => bot_s.controller.err_handler(error),
                             };
                         }
                     }
                     Err(error) => bot_s.controller.err_handler(error),
                 }
-
-                // TODO: data
             }
         }
     }
