@@ -5,7 +5,9 @@ use teloxide::{
     prelude::*,
     types::{InlineKeyboardButton, InlineKeyboardMarkup},
     types::{InlineKeyboardButtonKind, ReplyMarkup},
+    utils::command::{BotCommands, ParseError},
 };
+use wd_log::log_debug_ln;
 
 use crate::{
     db_controller::PaginatedRecordData,
@@ -16,6 +18,55 @@ use crate::{
     },
     telegram_bot::BotServer,
 };
+
+#[derive(BotCommands, PartialEq, Debug)]
+#[command(rename = "lowercase")]
+pub enum Commands {
+    #[command(description = "显示帮助信息")]
+    Help,
+
+    #[command(description = "关于本 Bot")]
+    About,
+
+    #[command(description = "关闭提醒")]
+    Mute,
+
+    #[command(description = "开启提醒")]
+    Unmute,
+
+    #[command(description = "列出已记录的内容", parse_with = "list_command_parser")]
+    List { username: String },
+
+    #[command(description = "删除记录")]
+    Del { id: i64 },
+
+    #[command(description = "注册")]
+    Setup,
+}
+
+impl Default for Commands {
+    fn default() -> Self {
+        Commands::Help
+    }
+}
+
+fn list_command_parser(input: String) -> Result<(String,), ParseError> {
+    log_debug_ln!(
+        "list_command_parse = \"{}\", is empty = {}",
+        input,
+        input.trim().is_empty()
+    );
+
+    let output: String;
+
+    if input.trim().is_empty() {
+        output = "me".to_string();
+    } else {
+        output = input
+    }
+
+    Ok((output,))
+}
 
 pub struct CommandHandler {}
 
@@ -177,11 +228,11 @@ impl CommandHandler {
         message: &Message,
     ) -> ReplyMarkup {
         let inline_keyboards = match page {
-            page if page == 0 => vec![
+            page if page == 0 && pages_count > 1 => vec![
                 InlineKeyboardButton {
                     text: BOT_BUTTON_NEXT.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         page + 1
@@ -190,25 +241,26 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_END.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         pages_count - 1
                     )),
                 },
             ],
-            page if page == pages_count - 1 => vec![
+            page if page == 0 && pages_count <= 1 => vec![],
+            page if page >= pages_count - 1 => vec![
                 InlineKeyboardButton {
                     text: BOT_BUTTON_HEAD.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id, username, 0
                     )),
                 },
                 InlineKeyboardButton {
                     text: BOT_BUTTON_PREV.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         page - 1
@@ -219,14 +271,14 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_HEAD.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id, username, 0
                     )),
                 },
                 InlineKeyboardButton {
                     text: BOT_BUTTON_PREV.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         page - 1
@@ -235,7 +287,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_NEXT.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         page + 1
@@ -244,7 +296,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_END.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "page {} {} {}",
+                        "!page {} {} {}",
                         message.id,
                         username,
                         pages_count - 1
@@ -264,10 +316,10 @@ impl CommandHandler {
     ) -> String {
         let mut msg = String::from("```");
         for (message, _) in paginated_record_data.current_data.iter() {
-            msg = format!("{}\n{}\t{}", msg, message.id, message.message);
+            msg = format!("{}\n{}\t\t\t\t{}", msg, message.id, message.message);
         }
         msg = format!(
-            "{}\n```\n\n{}/{}",
+            "{}\n```\n{}/{}",
             msg,
             page + 1,
             paginated_record_data.pages_count

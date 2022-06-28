@@ -1,3 +1,4 @@
+mod callback_commands;
 mod commands;
 mod config;
 mod db_controller;

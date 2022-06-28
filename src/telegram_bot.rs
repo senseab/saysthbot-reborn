@@ -1,17 +1,19 @@
 use std::collections::HashMap;
 
+use crate::callback_commands::CallbackCommands;
 use crate::db_controller::Controller;
 use crate::messages::*;
-use crate::{commands::CommandHandler, config::Args};
+use crate::{commands::CommandHandler, commands::Commands, config::Args};
 use migration::DbErr;
 use strfmt::Format;
 
+use teloxide::utils::command::BotCommands;
 use teloxide::{
     prelude::*, types::ForwardedFrom, types::InlineQueryResult, types::InlineQueryResultArticle,
     types::InputMessageContent, types::InputMessageContentText, types::ParseMode,
     types::ReplyMarkup, types::UpdateKind, RequestError,
 };
-use wd_log::{log_debug_ln, log_error_ln, log_info_ln, log_panic};
+use wd_log::{log_debug_ln, log_error_ln, log_info_ln, log_panic, log_warn_ln};
 
 pub struct BotServer {
     pub controller: Controller,
@@ -42,6 +44,8 @@ impl BotServer {
             Err(error) => log_panic!("{}", error),
         }
 
+        self.register_commands().await;
+
         let mut offset_id = 0;
 
         loop {
@@ -53,6 +57,19 @@ impl BotServer {
                 self.update_handler(&update).await;
                 offset_id = update.id + 1;
             }
+        }
+    }
+
+    async fn register_commands(&self) {
+        if let Err(error) = self
+            .bot
+            .set_my_commands(Commands::bot_commands())
+            .send()
+            .await
+        {
+            self.default_error_handler(&error);
+        } else {
+            log_info_ln!("commands registered")
         }
     }
 
@@ -70,27 +87,50 @@ impl BotServer {
     }
 
     async fn callback_handler(&self, callback: &CallbackQuery) {
+        log_debug_ln!("callback={:#?}", callback);
+
         let message = match &callback.message {
             Some(msg) => msg,
             None => return,
         };
 
-        let text = match message.text() {
+        let text = match &callback.data {
             Some(text) => text,
             None => return,
         };
 
-        let args: Vec<&str> = text.split(" ").collect();
+        let bot_username = match self.bot.get_me().send().await {
+            Ok(result) => result.username.to_owned(),
+            Err(error) => {
+                self.default_error_handler(&error);
+                return;
+            }
+        };
 
-        let (command, msg_id, username, page) = (args[0], args[1], args[2], args[3]);
+        let bot_username = match bot_username {
+            Some(b) => b,
+            None => return,
+        };
 
-        match command {
-            "page" => {
+        let commands = match CallbackCommands::parse(text, bot_username) {
+            Ok(c) => c,
+            Err(error) => {
+                log_warn_ln!("{}", error);
+                return;
+            }
+        };
+
+        match commands {
+            CallbackCommands::Page {
+                msg_id: _,
+                username,
+                page,
+            } => {
                 let (msg, keyboard) = match CommandHandler::record_msg_genrator(
                     self,
                     message,
-                    username,
-                    page.parse::<usize>().unwrap(),
+                    username.as_str(),
+                    page,
                 )
                 .await
                 {
@@ -98,15 +138,15 @@ impl BotServer {
                     None => return,
                 };
 
-                self.edit_text_reply_with_inline_key(
-                    message,
-                    msg_id.parse::<i32>().unwrap(),
-                    msg.as_str(),
-                    keyboard,
-                )
-                .await;
+                self.edit_text_reply_with_inline_key(message, message.id, msg.as_str(), keyboard)
+                    .await;
+
+                match self.bot.answer_callback_query(&callback.id).send().await {
+                    Ok(_) => (),
+                    Err(error) => self.default_error_handler(&error),
+                }
             }
-            _ => return,
+            CallbackCommands::Default => return,
         }
     }
 
@@ -262,47 +302,52 @@ impl BotServer {
             None => return,
         };
 
-        let commands = self.command_spliter(msg);
-        match commands[0].as_str() {
-            "about" => CommandHandler::about_handler(&self, message).await,
-            "list" => {
-                let mut username = commands[1].trim();
+        let bot_username = match self.bot.get_me().send().await {
+            Ok(result) => result.username.to_owned(),
+            Err(error) => {
+                self.default_error_handler(&error);
+                return;
+            }
+        };
 
-                if username == "" {
+        let bot_username = match bot_username {
+            Some(b) => b,
+            None => return,
+        };
+
+        let commands = match Commands::parse(msg, bot_username) {
+            Ok(c) => c,
+            Err(error) => {
+                log_warn_ln!("{}", error);
+                return;
+            }
+        };
+
+        match commands {
+            Commands::Help => CommandHandler::help_handler(&self, message).await,
+            Commands::About => CommandHandler::about_handler(&self, message).await,
+            Commands::Mute => CommandHandler::notify_handler(&self, message, true).await,
+            Commands::Unmute => CommandHandler::notify_handler(&self, message, false).await,
+            Commands::List { mut username } => {
+                if username == "me" {
                     if let Some(from) = message.from() {
                         if let Some(_username) = &from.username {
-                            username = _username;
+                            username = format!("@{}", _username);
                         }
                     }
                 }
 
                 if username.starts_with("@") {
                     // always start from page=0
-                    CommandHandler::list_handler(&self, message, username, 0).await;
+                    CommandHandler::list_handler(&self, message, &username, 0).await;
                 } else {
                     self.send_text_reply(message, BOT_TEXT_SHOULD_START_WITH_AT)
                         .await;
                 }
             }
-            "del" => {
-                if let Ok(id) = commands[1].trim().parse::<i64>() {
-                    CommandHandler::del_handler(&self, message, id).await;
-                }
-            }
-            "mute" => CommandHandler::notify_handler(&self, message, true).await,
-            "unmute" => CommandHandler::notify_handler(&self, message, false).await,
-            "setup" => CommandHandler::setup_handler(&self, message).await,
-            "help" => CommandHandler::help_handler(&self, message).await,
-            _ => CommandHandler::help_handler(&self, message).await,
+            Commands::Del { id } => CommandHandler::del_handler(&self, message, id).await,
+            Commands::Setup => CommandHandler::setup_handler(&self, message).await,
         }
-    }
-
-    fn command_spliter(&self, msg: &str) -> Vec<String> {
-        let commands: Vec<&str> = msg.split(" ").collect();
-        let command = commands[0].trim_start_matches("/").to_owned();
-        let args = commands[1..].join(" ").to_owned();
-
-        vec![command, args]
     }
 
     fn default_error_handler(&self, error: &RequestError) {
