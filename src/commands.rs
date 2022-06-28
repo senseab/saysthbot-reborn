@@ -41,7 +41,7 @@ pub enum Commands {
     Del { id: i64 },
 
     #[command(description = "注册")]
-    Setup,
+    Start,
 }
 
 impl Default for Commands {

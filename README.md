@@ -26,3 +26,18 @@ OPTIONS:
     -V, --version
             Print version information
 ```
+
+## build
+
+You should use `nightly` build kit.
+
+```bash
+rustup default nightly
+cargo build
+```
+
+Or simply use docker.
+
+```bash
+docker build -t bot .
+```

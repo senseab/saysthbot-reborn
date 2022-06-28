@@ -3,6 +3,7 @@ name = "saysthbot-reborn"
 version = "0.1.0"
 edition = "2021"
 description = "A telegram bot to record someone's message by forwarding"
+license = "MIT OR Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,7 +23,7 @@ features = ["full"]
 
 [dependencies.teloxide]
 version = "^0.9"
-features = ["macros", "rustls"]
+features = ["macros"]
 
 [dependencies.sea-orm]
 version = "^0.8.0"

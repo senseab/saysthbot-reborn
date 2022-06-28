@@ -179,7 +179,11 @@ impl BotServer {
                 id: record.id.to_string(),
                 title: record.message.to_owned(),
                 input_message_content: InputMessageContent::Text(InputMessageContentText {
-                    message_text: format!("`{}`: {}", username, record.message),
+                    message_text: format!(
+                        "*{}*: {}",
+                        username.trim_start_matches("@"),
+                        record.message
+                    ),
                     parse_mode: Some(ParseMode::MarkdownV2),
                     entities: None,
                     disable_web_page_preview: Some(true),
@@ -346,7 +350,7 @@ impl BotServer {
                 }
             }
             Commands::Del { id } => CommandHandler::del_handler(&self, message, id).await,
-            Commands::Setup => CommandHandler::setup_handler(&self, message).await,
+            Commands::Start => CommandHandler::setup_handler(&self, message).await,
         }
     }
 

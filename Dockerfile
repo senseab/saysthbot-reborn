@@ -1,21 +1,14 @@
-FROM alpine as build
+FROM rust as build
 
-ENV RUSTFLAGS="-C target-feature=-crt-static"
+WORKDIR /usr/src/saysthbot
+COPY . .
+RUN rustup default nightly && cargo build --release
 
-COPY ./ /saysthbot
+FROM debian:stable-slim
 
-RUN apk add --no-cache rust cargo && \
-    cd /saysthbot && \
-    cargo build --release
-
-FROM alpine
-
-RUN apk add --no-cache proxychains4
-
-ENV TGBOT_TOKEN="" DATABASE_URI="" WRAPPER="proxychain"
-
-CMD ["-c", "${WRAPPER} ./saysthbot-reborn"]
-
+RUN apt update && apt install -y proxychains4 ca-certificates && apt clean
+ENV TGBOT_TOKEN="" DATABASE_URI="" WRAPPER=""
+CMD ["-c", "${WRAPPER} ./saysthbot-reborn ${OPTIONS}"]
 ENTRYPOINT [ "/bin/sh" ]
 
-COPY --from=build /saysthbot/target/release/saysthbot-reborn ./
+COPY --from=build /usr/src/saysthbot/target/release/saysthbot-reborn ./
