@@ -18,3 +18,4 @@ pub const BOT_BUTTON_HEAD: &'static str = "⏮ 首页";
 pub const BOT_BUTTON_END: &'static str = "末页 ⏭";
 pub const BOT_BUTTON_PREV: &'static str = "⏪ 上一页";
 pub const BOT_BUTTON_NEXT: &'static str = "下一页 ⏩";
+pub const BOT_TEXT_LOADING: &'static str = "⌛️ 载入中……";

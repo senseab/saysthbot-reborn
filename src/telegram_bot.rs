@@ -109,6 +109,7 @@ impl BotServer {
             _ => return,
         }
     }
+
     async fn inline_query_hander(&self, inline_query: &InlineQuery) {
         let results = match self
             .controller
@@ -249,7 +250,9 @@ impl BotServer {
             ForwardedFrom::User(_) => {
                 self.send_text_reply(message, BOT_TEXT_NO_BOT).await;
             }
-            _ => self.send_text_message(message, BOT_TEXT_USER_ONLY).await,
+            _ => {
+                self.send_text_message(message, BOT_TEXT_USER_ONLY).await;
+            }
         }
     }
 
@@ -315,7 +318,7 @@ impl BotServer {
         self.send_text_reply(message, BOT_TEXT_MESSAGE_ONLY).await;
     }
 
-    pub async fn send_text_message(&self, message: &Message, text: &str) {
+    pub async fn send_text_message(&self, message: &Message, text: &str) -> Option<i32> {
         match &self
             .bot
             .send_message(message.chat.id, text)
@@ -323,12 +326,18 @@ impl BotServer {
             .send()
             .await
         {
-            Ok(result) => log_debug_ln!("message sent {:?}", result),
-            Err(error) => self.default_error_handler(error),
+            Ok(result) => {
+                log_debug_ln!("message sent {:?}", result);
+                Some(result.id)
+            }
+            Err(error) => {
+                self.default_error_handler(error);
+                return None;
+            }
         }
     }
 
-    pub async fn send_text_reply(&self, message: &Message, text: &str) {
+    pub async fn send_text_reply(&self, message: &Message, text: &str) -> Option<i32> {
         match &self
             .bot
             .send_message(message.chat.id, text)
@@ -337,28 +346,14 @@ impl BotServer {
             .send()
             .await
         {
-            Ok(result) => log_debug_ln!("reply sent {:?}", result),
-            Err(error) => self.default_error_handler(error),
-        }
-    }
-
-    pub async fn send_text_reply_with_inline_key(
-        &self,
-        message: &Message,
-        text: &str,
-        keyboard: ReplyMarkup,
-    ) {
-        match &self
-            .bot
-            .send_message(message.chat.id, text)
-            .reply_to_message_id(message.id)
-            .parse_mode(ParseMode::MarkdownV2)
-            .reply_markup(keyboard)
-            .send()
-            .await
-        {
-            Ok(result) => log_debug_ln!("reply sent {:?}", result),
-            Err(error) => self.default_error_handler(error),
+            Ok(result) => {
+                log_debug_ln!("reply sent {:?}", result);
+                Some(result.id)
+            }
+            Err(error) => {
+                self.default_error_handler(error);
+                None
+            }
         }
     }
 

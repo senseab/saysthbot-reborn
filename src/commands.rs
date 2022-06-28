@@ -11,8 +11,8 @@ use crate::{
     db_controller::PaginatedRecordData,
     messages::{
         BOT_ABOUT, BOT_BUTTON_END, BOT_BUTTON_HEAD, BOT_BUTTON_NEXT, BOT_BUTTON_PREV, BOT_HELP,
-        BOT_TEXT_DELETED, BOT_TEXT_MUTE_STATUS, BOT_TEXT_STATUS_OFF, BOT_TEXT_STATUS_ON,
-        BOT_TEXT_WELCOME,
+        BOT_TEXT_DELETED, BOT_TEXT_LOADING, BOT_TEXT_MUTE_STATUS, BOT_TEXT_STATUS_OFF,
+        BOT_TEXT_STATUS_ON, BOT_TEXT_WELCOME,
     },
     telegram_bot::BotServer,
 };
@@ -95,7 +95,7 @@ impl CommandHandler {
             bot_s.controller.err_handler(error);
         }
 
-        bot_s.send_text_reply(message, BOT_TEXT_DELETED).await
+        bot_s.send_text_reply(message, BOT_TEXT_DELETED).await;
     }
 
     pub async fn list_handler(bot_s: &BotServer, message: &Message, username: &str, page: usize) {
@@ -108,13 +108,18 @@ impl CommandHandler {
             return;
         }
 
+        let msg_id = match bot_s.send_text_reply(message, BOT_TEXT_LOADING).await {
+            Some(id) => id,
+            None => return,
+        };
+
         let (msg, markup) = match Self::record_msg_genrator(bot_s, message, username, page).await {
             Some(d) => d,
             None => return,
         };
 
         bot_s
-            .send_text_reply_with_inline_key(message, msg.as_str(), markup)
+            .edit_text_reply_with_inline_key(message, msg_id, msg.as_str(), markup)
             .await;
     }
 
@@ -176,7 +181,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_NEXT.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id,
                         username,
                         page + 1
@@ -185,7 +190,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_END.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id,
                         username,
                         pages_count - 1
@@ -196,14 +201,14 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_HEAD.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id, username, 0
                     )),
                 },
                 InlineKeyboardButton {
                     text: BOT_BUTTON_PREV.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id,
                         username,
                         page - 1
@@ -214,7 +219,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_HEAD.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id, username, 0
                     )),
                 },
@@ -230,7 +235,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_NEXT.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id,
                         username,
                         page + 1
@@ -239,7 +244,7 @@ impl CommandHandler {
                 InlineKeyboardButton {
                     text: BOT_BUTTON_END.to_string(),
                     kind: InlineKeyboardButtonKind::CallbackData(format!(
-                        "{},{},{}",
+                        "page {} {} {}",
                         message.id,
                         username,
                         pages_count - 1
