@@ -1,0 +1,7 @@
+.vscode
+target
+.env
+.gitignore
+README.md
+.github
+.DS_Store

@@ -1,0 +1,12 @@
+[package]
+name = "models"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "models"
+path = "src/lib.rs"
+
+[dependencies.sea-orm]
+version = "^0.8.0"
