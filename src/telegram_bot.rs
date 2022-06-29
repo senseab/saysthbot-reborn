@@ -294,6 +294,9 @@ impl BotServer {
             ForwardedFrom::User(_) => {
                 self.send_text_reply(message, BOT_TEXT_NO_BOT).await;
             }
+            ForwardedFrom::SenderName(_) => {
+                self.send_text_reply(message, BOT_TEXT_USER_PRIVATE).await;
+            }
             _ => {
                 self.send_text_message(message, BOT_TEXT_USER_ONLY).await;
             }
