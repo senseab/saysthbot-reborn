@@ -7,7 +7,7 @@ use crate::{commands::CommandHandler, commands::Commands, config::Args};
 use migration::DbErr;
 use strfmt::Format;
 
-use teloxide::utils::command::BotCommands;
+use teloxide::utils::{command::BotCommands, markdown::escape};
 use teloxide::{
     prelude::*, types::ForwardedFrom, types::InlineQueryResult, types::InlineQueryResultArticle,
     types::InputMessageContent, types::InputMessageContentText, types::ParseMode,
@@ -182,7 +182,7 @@ impl BotServer {
                     message_text: format!(
                         "*{}*: {}",
                         username.trim_start_matches("@"),
-                        record.message
+                        escape(&record.message)
                     ),
                     parse_mode: Some(ParseMode::MarkdownV2),
                     entities: None,
