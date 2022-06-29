@@ -4,7 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, DatabaseTransaction, DbErr,
     EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
 };
-use wd_log::{log_error_ln, log_info_ln, log_warn_ln};
+use wd_log::{log_error_ln, log_info_ln, log_panic, log_warn_ln};
 
 const PAGE_SIZE: usize = 25;
 
@@ -185,6 +185,9 @@ impl Controller {
     }
 
     pub fn err_handler(&self, error: DbErr) {
-        log_error_ln!("{}", error);
+        match error {
+            DbErr::Conn(err) => log_panic!("{}", err),
+            error => log_error_ln!("{}", error),
+        }
     }
 }

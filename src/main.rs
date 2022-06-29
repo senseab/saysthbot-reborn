@@ -29,7 +29,7 @@ async fn main() {
     };
 
     if let Err(err) = bot.init().await {
-        log_panic!("{}", err);
+        bot.controller.err_handler(err);
     }
 
     bot.run().await;
