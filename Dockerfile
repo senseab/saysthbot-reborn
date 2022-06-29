@@ -7,7 +7,7 @@ RUN apk add --no-cache rustup openssl-dev build-base && rustup-init -y --default
 
 FROM alpine
 
-RUN apk add --no-cache ca-certificates openssl
+RUN apk add --no-cache ca-certificates openssl libgcc
 ENV TGBOT_TOKEN="" DATABASE_URI="" WRAPPER=""
 CMD ["-c", "${WRAPPER} ./saysthbot-reborn ${OPTIONS}"]
 ENTRYPOINT [ "/bin/sh" ]
