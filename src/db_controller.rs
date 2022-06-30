@@ -98,7 +98,7 @@ impl Controller {
         transaction: &DatabaseTransaction,
     ) -> Result<Option<UserModel>, DbErr> {
         User::find()
-            .filter(UserColumn::Id.eq(user_id.to_owned()))
+            .filter(UserColumn::TgUid.eq(user_id.to_owned()))
             .one(transaction)
             .await
     }

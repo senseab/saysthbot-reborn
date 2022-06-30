@@ -195,7 +195,7 @@ impl CommandHandler {
 
         let data = match bot_s
             .controller
-            .get_records_by_userid_with_pagination(someone.id, page)
+            .get_records_by_userid_with_pagination(someone.tg_uid, page)
             .await
         {
             Ok(data) => data,
