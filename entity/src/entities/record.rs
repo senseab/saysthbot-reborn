@@ -14,6 +14,10 @@ pub struct Model {
     /// records
     #[sea_orm(indexed, column_type = "Text", unique)]
     pub message: String,
+
+    /// hot
+    #[sea_orm(default_value = "0")]
+    pub hot: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

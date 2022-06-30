@@ -78,12 +78,27 @@ impl BotServer {
             UpdateKind::Message(ref message) => self.message_handler(message).await,
             UpdateKind::InlineQuery(inline_query) => self.inline_query_hander(inline_query).await,
             UpdateKind::CallbackQuery(callback) => self.callback_handler(callback).await,
+            UpdateKind::ChosenInlineResult(result) => {
+                self.chosen_inline_result_handler(result).await;
+            }
             kind => self.default_update_hander(&kind).await,
         }
     }
 
     async fn default_update_hander(&self, update_kind: &UpdateKind) {
         log_debug_ln!("non-supported kind {:?}", update_kind);
+    }
+
+    async fn chosen_inline_result_handler(&self, result: &ChosenInlineResult) {
+        log_debug_ln!("chosen_result={:?}", result);
+
+        if let Err(error) = self
+            .controller
+            .update_record_hot(result.result_id.parse::<i64>().unwrap())
+            .await
+        {
+            self.controller.err_handler(error);
+        }
     }
 
     async fn callback_handler(&self, callback: &CallbackQuery) {
@@ -241,7 +256,7 @@ impl BotServer {
                     .add_record(user.id.0.try_into().unwrap(), &username, data.to_string())
                     .await
                 {
-                    log_error_ln!("{}", err);
+                    self.controller.err_handler(err);
                     return;
                 }
                 let mut vars = HashMap::new();

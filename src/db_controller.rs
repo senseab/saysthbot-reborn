@@ -2,7 +2,7 @@ use migration::{Migrator, MigratorTrait};
 use models::prelude::*;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, DatabaseTransaction, DbErr,
-    EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
+    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use wd_log::{log_error_ln, log_info_ln, log_panic, log_warn_ln};
 
@@ -119,7 +119,8 @@ impl Controller {
         let pagination = Record::find()
             .find_also_related(User)
             .filter(RecordColumn::Message.contains(key_word.as_str()))
-            .paginate(&self.db, PAGE_SIZE * 2); // 50 records seems ok.
+            .order_by_desc(RecordColumn::Hot)
+            .paginate(&self.db, 50); // 50 records seems ok.
         Ok(PaginatedRecordData {
             items_count: pagination.num_items().await?,
             pages_count: pagination.num_pages().await?,
@@ -172,6 +173,7 @@ impl Controller {
     /// del record when `/delete` command called.
     pub async fn del_record(&self, id: i64, user_id: i64) -> Result<(), DbErr> {
         let transaction = self.db.begin().await?;
+
         if let Some(user) = self.get_user(&user_id, &transaction).await? {
             RecordActiveModel {
                 id: Set(id),
@@ -182,6 +184,19 @@ impl Controller {
             .await?;
         }
         transaction.commit().await
+    }
+
+    pub async fn update_record_hot(&self, id: i64) -> Result<(), DbErr> {
+        let transcation = self.db.begin().await?;
+
+        if let Some(record) = Record::find_by_id(id).one(&transcation).await? {
+            let hot = record.hot;
+            let mut record_active: RecordActiveModel = record.into();
+            record_active.hot = Set(hot + 1);
+            record_active.save(&transcation).await?;
+        }
+
+        transcation.commit().await
     }
 
     pub fn err_handler(&self, error: DbErr) {
