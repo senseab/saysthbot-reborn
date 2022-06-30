@@ -271,7 +271,7 @@ impl BotServer {
                     }
                 } {
                     let mut vars = HashMap::new();
-                    let user_id = user.id.to_string();
+                    let user_id = from.id.to_string();
                     let data = data.to_string();
 
                     vars.insert("username".to_string(), &from.first_name);
