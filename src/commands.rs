@@ -13,8 +13,8 @@ use crate::{
     db_controller::PaginatedRecordData,
     messages::{
         BOT_ABOUT, BOT_BUTTON_END, BOT_BUTTON_HEAD, BOT_BUTTON_NEXT, BOT_BUTTON_PREV, BOT_HELP,
-        BOT_TEXT_DELETED, BOT_TEXT_LOADING, BOT_TEXT_MUTE_STATUS, BOT_TEXT_STATUS_OFF,
-        BOT_TEXT_STATUS_ON, BOT_TEXT_WELCOME,
+        BOT_TEXT_DELETED, BOT_TEXT_LOADING, BOT_TEXT_MUTE_STATUS, BOT_TEXT_NO_LIST,
+        BOT_TEXT_STATUS_OFF, BOT_TEXT_STATUS_ON, BOT_TEXT_WELCOME,
     },
     telegram_bot::BotServer,
 };
@@ -315,15 +315,20 @@ impl CommandHandler {
         page: usize,
     ) -> String {
         let mut msg = String::from("```");
+
         for (message, _) in paginated_record_data.current_data.iter() {
             msg = format!("{}\n{}\t\t\t\t{}", msg, message.id, message.message);
         }
-        msg = format!(
-            "{}\n```\n{}/{}",
-            msg,
-            page + 1,
-            paginated_record_data.pages_count
-        );
+        if paginated_record_data.items_count == 0 {
+            msg = BOT_TEXT_NO_LIST.to_string();
+        } else {
+            msg = format!(
+                "{}\n```\n{}/{}",
+                msg,
+                page + 1,
+                paginated_record_data.pages_count
+            );
+        }
 
         msg
     }
