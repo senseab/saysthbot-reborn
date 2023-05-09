@@ -24,7 +24,8 @@ impl BotServer {
     /// Create new bot
     pub async fn new(config: Args) -> Result<Self, DbErr> {
         Ok(Self {
-            bot: Bot::new(config.tgbot_token),
+            bot: Bot::new(config.tgbot_token)
+                .set_api_url(reqwest::Url::parse(config.api_url.as_str()).unwrap()),
             controller: Controller::new(config.database_uri).await?,
         })
     }
