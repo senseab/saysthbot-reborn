@@ -296,7 +296,8 @@ impl BotServer {
 
                     match self
                         .bot
-                        .send_message(user.id, &BOT_TEXT_NOTICE.format(&vars).unwrap())
+                        .send_message(user.id, escape(&BOT_TEXT_NOTICE.format(&vars).unwrap()))
+                        .parse_mode(ParseMode::MarkdownV2)
                         .send()
                         .await
                     {
