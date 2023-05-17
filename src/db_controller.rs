@@ -139,6 +139,7 @@ impl Controller {
             let pagination = Record::find()
                 .find_also_related(User)
                 .filter(RecordColumn::UserId.eq(user.id))
+                .order_by_asc(RecordColumn::Id)
                 .paginate(&transaction, PAGE_SIZE);
             Ok(Some(PaginatedRecordData {
                 current_data: pagination.fetch_page(page).await?,
